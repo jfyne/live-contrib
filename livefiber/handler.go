@@ -41,10 +41,10 @@ func NewHandler(store *session.Store, configs ...live.HandlerConfig) (*FiberHand
 }
 
 func (h *FiberHandler) Handler() []fiber.Handler {
-	return []fiber.Handler{h.HTTP, websocket.New(h.WS)}
+	return []fiber.Handler{h.http, websocket.New(h.ws)}
 }
 
-func (h *FiberHandler) HTTP(c *fiber.Ctx) error {
+func (h *FiberHandler) http(c *fiber.Ctx) error {
 	// Get Session.
 	session, err := getSession(h.sessionStore, c)
 	if err != nil {
@@ -108,14 +108,12 @@ func (h *FiberHandler) HTTP(c *fiber.Ctx) error {
 	return nil
 }
 
-func (h *FiberHandler) WS(c *websocket.Conn) {
+func (h *FiberHandler) ws(c *websocket.Conn) {
 	err := h._ws(c)
 	if errors.Is(err, context.Canceled) {
 		return
 	}
-	if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
-		return
-	} else {
+	if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 		log.Println(fmt.Errorf("ws closed with status: %w", err))
 	}
 }
@@ -245,11 +243,15 @@ func (h *FiberHandler) _ws(c *websocket.Conn) error {
 				return fmt.Errorf("writing to socket error: %w", err)
 			}
 		case err := <-internalErrors:
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
+				return err
+			}
+
 			c.SetWriteDeadline(time.Now().Add(5 * time.Second))
 			if err != nil {
 				d, err := json.Marshal(err.Error())
 				if err != nil {
-					return fmt.Errorf("writing to socket error: %w", err)
+					return fmt.Errorf("marshalling error writing to socket error: %w", err)
 				}
 				if err := c.WriteJSON(live.Event{T: live.EventError, Data: d}); err != nil {
 					return fmt.Errorf("writing to socket error: %w", err)
