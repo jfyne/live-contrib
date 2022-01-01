@@ -17,8 +17,15 @@ func getSession(store *session.Store, c *fiber.Ctx) (live.Session, error) {
 	}
 	session, ok := s.Get(sessionKey).(live.Session)
 	if !ok {
-		return live.NewSession(), nil
+		session = live.NewSession()
 	}
+	for _, k := range s.Keys() {
+		if k == sessionKey {
+			continue
+		}
+		session[k] = s.Get(k)
+	}
+
 	return session, nil
 }
 
@@ -28,7 +35,7 @@ func saveSession(store *session.Store, c *fiber.Ctx, session live.Session) error
 		return fmt.Errorf("could not get session: %w", err)
 	}
 	s.Set(sessionKey, session)
-	return nil
+	return s.Save()
 }
 
 func clearSession(store *session.Store, c *fiber.Ctx) error {
@@ -36,5 +43,6 @@ func clearSession(store *session.Store, c *fiber.Ctx) error {
 	if err != nil {
 		return fmt.Errorf("could not get session: %w", err)
 	}
-	return s.Destroy()
+	s.Delete(sessionKey)
+	return s.Save()
 }
