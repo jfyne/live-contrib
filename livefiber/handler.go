@@ -45,10 +45,12 @@ func (h *FiberHandler) Handler() []fiber.Handler {
 }
 
 func (h *FiberHandler) http(c *fiber.Ctx) error {
+	ctx := contextWithCtx(c.Context(), c)
+
 	// Get Session.
 	session, err := getSession(h.sessionStore, c)
 	if err != nil {
-		h.Error()(c.Context(), err)
+		h.Error()(ctx, err)
 		return err
 	}
 
@@ -65,27 +67,27 @@ func (h *FiberHandler) http(c *fiber.Ctx) error {
 	sock := NewSocket(session, h, false)
 
 	// Run mount.
-	data, err := h.Mount()(c.Context(), sock)
+	data, err := h.Mount()(ctx, sock)
 	if err != nil {
-		h.Error()(c.Context(), err)
+		h.Error()(ctx, err)
 		return err
 	}
 	sock.Assign(data)
 
 	// Handle any query parameters that are on the page.
 	for _, ph := range h.Params() {
-		data, err := ph(c.Context(), sock, NewParamsFromRequest(c))
+		data, err := ph(ctx, sock, NewParamsFromRequest(c))
 		if err != nil {
-			h.Error()(c.Context(), err)
+			h.Error()(ctx, err)
 			return err
 		}
 		sock.Assign(data)
 	}
 
 	// Render the HTML to display the page.
-	render, err := live.RenderSocket(c.Context(), h, sock)
+	render, err := live.RenderSocket(ctx, h, sock)
 	if err != nil {
-		h.Error()(c.Context(), err)
+		h.Error()(ctx, err)
 		return err
 	}
 	sock.UpdateRender(render)
@@ -95,13 +97,13 @@ func (h *FiberHandler) http(c *fiber.Ctx) error {
 
 	// Save the session.
 	if err := saveSession(h.sessionStore, c, session); err != nil {
-		h.Error()(c.Context(), err)
+		h.Error()(ctx, err)
 		return err
 	}
 
 	// Output the html.
 	if _, err := c.Write(rendered.Bytes()); err != nil {
-		h.Error()(c.Context(), err)
+		h.Error()(ctx, err)
 		return err
 	}
 
@@ -119,13 +121,13 @@ func (h *FiberHandler) ws(c *websocket.Conn) {
 }
 
 func (h *FiberHandler) _ws(c *websocket.Conn) error {
+	// Create live context.
+	ctx := contextWithConn(context.Background(), c)
+
 	session, ok := c.Locals("session").(live.Session)
 	if !ok {
 		return fmt.Errorf("could not get session from locals")
 	}
-
-	// Todo: Figure this out.
-	ctx := context.Background()
 
 	// Get socket and register with server.
 	sock := NewSocket(session, h, true)
