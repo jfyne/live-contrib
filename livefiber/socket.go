@@ -6,8 +6,8 @@ type FiberSocket struct {
 	*live.BaseSocket
 }
 
-func NewSocket(s live.Session, h live.Handler, connected bool) *FiberSocket {
+func NewSocket(s live.Session, e live.Engine, connected bool) *FiberSocket {
 	return &FiberSocket{
-		BaseSocket: live.NewBaseSocket(s, h, connected),
+		BaseSocket: live.NewBaseSocket(s, e, connected),
 	}
 }

@@ -3,15 +3,17 @@ module github.com/jfyne/live-contrib/livefiber
 go 1.17
 
 require (
-	github.com/gofiber/fiber/v2 v2.23.0
+	github.com/gofiber/adaptor/v2 v2.1.16
+	github.com/gofiber/fiber/v2 v2.24.0
 	github.com/gofiber/websocket/v2 v2.0.14
-	github.com/jfyne/live v0.13.0-alpha.0
+	github.com/jfyne/live v0.13.0-alpha.1
 	golang.org/x/net v0.0.0-20210510120150-4163338589ed
 )
 
 require (
 	github.com/andybalholm/brotli v1.0.2 // indirect
 	github.com/fasthttp/websocket v1.4.3-rc.10 // indirect
+	github.com/gofiber/utils v0.1.2 // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/gorilla/securecookie v1.1.1 // indirect
 	github.com/gorilla/sessions v1.2.1 // indirect

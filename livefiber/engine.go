@@ -16,41 +16,31 @@ import (
 	"golang.org/x/net/html"
 )
 
-var _ live.Handler = &FiberHandler{}
+var _ live.Engine = &FiberEngine{}
 
-type FiberHandler struct {
+type FiberEngine struct {
 	sessionStore *session.Store
-	*live.BaseHandler
+	*live.BaseEngine
 }
 
-func NewHandler(store *session.Store, configs ...live.HandlerConfig) (*FiberHandler, error) {
-	base, err := live.NewBaseHandler(configs...)
-	if err != nil {
-		return nil, fmt.Errorf("could not init base handler: %w", err)
-	}
-	h := &FiberHandler{
+func NewHandler(store *session.Store, h live.Handler) *FiberEngine {
+	return &FiberEngine{
 		sessionStore: store,
-		BaseHandler:  base,
+		BaseEngine:   live.NewBaseEngine(h),
 	}
-	for _, conf := range configs {
-		if err := conf(h); err != nil {
-			return nil, fmt.Errorf("could not apply config: %w", err)
-		}
-	}
-	return h, nil
 }
 
-func (h *FiberHandler) Handler() []fiber.Handler {
-	return []fiber.Handler{h.http, websocket.New(h.ws)}
+func (e *FiberEngine) Handlers() []fiber.Handler {
+	return []fiber.Handler{e.http, websocket.New(e.ws)}
 }
 
-func (h *FiberHandler) http(c *fiber.Ctx) error {
+func (e *FiberEngine) http(c *fiber.Ctx) error {
 	ctx := contextWithCtx(c.Context(), c)
 
 	// Get Session.
-	session, err := getSession(h.sessionStore, c)
+	session, err := getSession(e.sessionStore, c)
 	if err != nil {
-		h.Error()(ctx, err)
+		e.Error()(ctx, err)
 		return err
 	}
 
@@ -64,30 +54,30 @@ func (h *FiberHandler) http(c *fiber.Ctx) error {
 	c.Set("Content-Type", "text/html")
 
 	// Get Socket.
-	sock := NewSocket(session, h, false)
+	sock := NewSocket(session, e, false)
 
 	// Run mount.
-	data, err := h.Mount()(ctx, sock)
+	data, err := e.Mount()(ctx, sock)
 	if err != nil {
-		h.Error()(ctx, err)
+		e.Error()(ctx, err)
 		return err
 	}
 	sock.Assign(data)
 
 	// Handle any query parameters that are on the page.
-	for _, ph := range h.Params() {
+	for _, ph := range e.Params() {
 		data, err := ph(ctx, sock, NewParamsFromRequest(c))
 		if err != nil {
-			h.Error()(ctx, err)
+			e.Error()(ctx, err)
 			return err
 		}
 		sock.Assign(data)
 	}
 
 	// Render the HTML to display the page.
-	render, err := live.RenderSocket(ctx, h, sock)
+	render, err := live.RenderSocket(ctx, e, sock)
 	if err != nil {
-		h.Error()(ctx, err)
+		e.Error()(ctx, err)
 		return err
 	}
 	sock.UpdateRender(render)
@@ -96,22 +86,22 @@ func (h *FiberHandler) http(c *fiber.Ctx) error {
 	html.Render(&rendered, render)
 
 	// Save the session.
-	if err := saveSession(h.sessionStore, c, session); err != nil {
-		h.Error()(ctx, err)
+	if err := saveSession(e.sessionStore, c, session); err != nil {
+		e.Error()(ctx, err)
 		return err
 	}
 
 	// Output the html.
 	if _, err := c.Write(rendered.Bytes()); err != nil {
-		h.Error()(ctx, err)
+		e.Error()(ctx, err)
 		return err
 	}
 
 	return nil
 }
 
-func (h *FiberHandler) ws(c *websocket.Conn) {
-	err := h._ws(c)
+func (e *FiberEngine) ws(c *websocket.Conn) {
+	err := e._ws(c)
 	if errors.Is(err, context.Canceled) {
 		return
 	}
@@ -120,7 +110,7 @@ func (h *FiberHandler) ws(c *websocket.Conn) {
 	}
 }
 
-func (h *FiberHandler) _ws(c *websocket.Conn) error {
+func (e *FiberEngine) _ws(c *websocket.Conn) error {
 	// Create live context.
 	ctx := contextWithConn(context.Background(), c)
 
@@ -130,9 +120,9 @@ func (h *FiberHandler) _ws(c *websocket.Conn) error {
 	}
 
 	// Get socket and register with server.
-	sock := NewSocket(session, h, true)
-	h.AddSocket(sock)
-	defer h.DeleteSocket(sock)
+	sock := NewSocket(session, e, true)
+	e.AddSocket(sock)
+	defer e.DeleteSocket(sock)
 
 	// Internal errors.
 	internalErrors := make(chan error)
@@ -161,7 +151,7 @@ func (h *FiberHandler) _ws(c *websocket.Conn) error {
 				}
 				switch m.T {
 				case live.EventParams:
-					if err := h.CallParams(ctx, sock, m); err != nil {
+					if err := e.CallParams(ctx, sock, m); err != nil {
 						switch {
 						case errors.Is(err, live.ErrNoEventHandler):
 							log.Println("event error", m, err)
@@ -170,7 +160,7 @@ func (h *FiberHandler) _ws(c *websocket.Conn) error {
 						}
 					}
 				default:
-					if err := h.CallEvent(ctx, m.T, sock, m); err != nil {
+					if err := e.CallEvent(ctx, m.T, sock, m); err != nil {
 						switch {
 						case errors.Is(err, live.ErrNoEventHandler):
 							log.Println("event error", m, err)
@@ -179,7 +169,7 @@ func (h *FiberHandler) _ws(c *websocket.Conn) error {
 						}
 					}
 				}
-				render, err := live.RenderSocket(ctx, h, sock)
+				render, err := live.RenderSocket(ctx, e, sock)
 				if err != nil {
 					internalErrors <- fmt.Errorf("socket handle error: %w", err)
 				} else {
@@ -199,14 +189,14 @@ func (h *FiberHandler) _ws(c *websocket.Conn) error {
 	}()
 	// Run mount again now that eh socket is connected, passing true indicating
 	// a connection has been made.
-	data, err := h.Mount()(ctx, sock)
+	data, err := e.Mount()(ctx, sock)
 	if err != nil {
 		return fmt.Errorf("socket mount error: %w", err)
 	}
 	sock.Assign(data)
 
 	// Run params again now that the socket is connected.
-	for _, ph := range h.Params() {
+	for _, ph := range e.Params() {
 		params, ok := c.Locals("params").(live.Params)
 		if !ok {
 			return fmt.Errorf("locals params could not be found")
@@ -221,7 +211,7 @@ func (h *FiberHandler) _ws(c *websocket.Conn) error {
 	// Run render now that we are connected for the first time and we have just
 	// mounted again. This will generate and send any patches if there have
 	// been changes.
-	render, err := live.RenderSocket(ctx, h, sock)
+	render, err := live.RenderSocket(ctx, e, sock)
 	if err != nil {
 		return fmt.Errorf("socket render error: %w", err)
 	}
