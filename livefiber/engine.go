@@ -48,6 +48,7 @@ func (e *FiberEngine) http(c *fiber.Ctx) error {
 	if upgrade {
 		c.Locals("session", session)
 		c.Locals("params", NewParamsFromRequest(c))
+		c.Locals("views", c.App().Config().Views)
 		return c.Next()
 	}
 
@@ -147,7 +148,7 @@ func (e *FiberEngine) _ws(c *websocket.Conn) error {
 				var m live.Event
 				if err := json.Unmarshal(d, &m); err != nil {
 					internalErrors <- err
-					break
+					goto stoploop
 				}
 				switch m.T {
 				case live.EventParams:
@@ -172,11 +173,13 @@ func (e *FiberEngine) _ws(c *websocket.Conn) error {
 				render, err := live.RenderSocket(ctx, e, sock)
 				if err != nil {
 					internalErrors <- fmt.Errorf("socket handle error: %w", err)
+					goto stoploop
 				} else {
 					sock.UpdateRender(render)
 				}
 				if err := sock.Send(live.EventAck, nil, live.WithID(m.ID)); err != nil {
 					internalErrors <- fmt.Errorf("socket send error: %w", err)
+					goto stoploop
 				}
 			case websocket.BinaryMessage:
 				log.Println("binary messages unhandled")
@@ -184,6 +187,7 @@ func (e *FiberEngine) _ws(c *websocket.Conn) error {
 			}
 		}
 
+	stoploop:
 		close(internalErrors)
 		close(eventErrors)
 	}()

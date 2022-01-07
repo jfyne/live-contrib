@@ -6,7 +6,7 @@ require (
 	github.com/gofiber/adaptor/v2 v2.1.16
 	github.com/gofiber/fiber/v2 v2.24.0
 	github.com/gofiber/websocket/v2 v2.0.14
-	github.com/jfyne/live v0.14.0
+	github.com/jfyne/live v0.14.1
 	golang.org/x/net v0.0.0-20210510120150-4163338589ed
 )
 
