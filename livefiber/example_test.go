@@ -1,15 +1,15 @@
+// +build example
+
 package livefiber
 
 import (
-	"bytes"
 	"context"
-	"html/template"
-	"io"
 	"log"
 
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"github.com/gofiber/template/html"
 	"github.com/jfyne/live"
 )
 
@@ -58,33 +58,13 @@ func tempDown(ctx context.Context, s live.Socket, p live.Params) (interface{}, e
 func Example() {
 
 	// Setup the handler.
-	h := live.NewHandler()
+	h := live.NewHandler(WithViewsRenderer("view"))
 
 	// Mount function is called on initial HTTP load and then initial web
 	// socket connection. This should be used to create the initial state,
 	// the socket Connected func will be true if the mount call is on a web
 	// socket connection.
 	h.HandleMount(thermoMount)
-
-	// Provide a render function. Here we are doing it manually, but there is a
-	// provided WithTemplateRenderer which can be used to work with `html/template`
-	h.HandleRender(func(ctx context.Context, data interface{}) (io.Reader, error) {
-		tmpl, err := template.New("thermo").Parse(`
-            <div>{{.C}}</div>
-            <button live-click="temp-up">+</button>
-            <button live-click="temp-down">-</button>
-            <!-- Include to make live work -->
-            <script src="/live.js"></script>
-        `)
-		if err != nil {
-			return nil, err
-		}
-		var buf bytes.Buffer
-		if err := tmpl.Execute(&buf, data); err != nil {
-			return nil, err
-		}
-		return &buf, nil
-	})
 
 	// This handles the `live-click="temp-up"` button. First we load the model from
 	// the socket, increment the temperature, and then return the new state of the
@@ -96,7 +76,9 @@ func Example() {
 	h.HandleEvent("temp-down", tempDown)
 
 	// Setup fiber.
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		Views: html.New("./views", ".html"),
+	})
 
 	app.Get("/thermostat", NewHandler(session.New(), h).Handlers()...)
 
