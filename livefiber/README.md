@@ -116,7 +116,7 @@ func Example() {
 <!doctype html>
 <html>
     <body>
-        <div>{{.C}}</div>
+        <div>{{.Assigns.C}}</div>
         <button live-click="temp-up">+</button>
         <button live-click="temp-down">-</button>
         <!-- Include to make live work -->
