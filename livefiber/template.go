@@ -11,19 +11,18 @@ import (
 
 // WithViewsRenderer set the handler to use the fiber App views renderer.
 func WithViewsRenderer(name string, layouts ...string) live.HandlerConfig {
-	return func(h live.Handler) error {
+	return func(h *live.Handler) error {
 		h.HandleRender(
 			func(ctx context.Context, rc *live.RenderContext) (io.Reader, error) {
 				v := getViews(ctx)
 				var buf bytes.Buffer
-				if err := v.Render(&buf, name, rc.Assigns, layouts...); err != nil {
+				if err := v.Render(&buf, name, rc, layouts...); err != nil {
 					return nil, err
 				}
-				
 				return &buf, nil
 			},
 		)
-		
+
 		return nil
 	}
 }
