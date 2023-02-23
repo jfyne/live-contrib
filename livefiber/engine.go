@@ -23,7 +23,7 @@ type FiberEngine struct {
 	*live.BaseEngine
 }
 
-func NewHandler(store *session.Store, h *live.Handler) *FiberEngine {
+func NewHandler(store *session.Store, h live.Handler) *FiberEngine {
 	return &FiberEngine{
 		sessionStore: store,
 		BaseEngine:   live.NewBaseEngine(h),
